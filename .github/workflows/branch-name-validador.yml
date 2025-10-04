@@ -1,29 +1,42 @@
-name: Branch Name Validation
+name: Validação de Nome de Branch
 
+# 1. Quando o workflow será acionado
 on:
   pull_request:
-    branches:
-      - '*'
+    types: [opened, reopened, synchronize] # Executa quando um PR é aberto, reaberto ou atualizado
 
+# 2. Definição dos jobs a serem executados
 jobs:
-  validate-branch-name:
-    runs-on: ubuntu-latest
+  validate_branch_name:
+    name: Verificar Prefixo da Branch
+    runs-on: ubuntu-latest # O ambiente de execução
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set script permissions
-        run: chmod +x ./.github/scripts/validate-branch-name.sh
-
-      - name: Get branch name
-        id: get_branch
+      - name: Verificar se o nome da branch segue o padrão
+        # Usa o 'shell' para executar um comando que verifica o nome
+        shell: bash
         run: |
-          if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
-            BRANCH_NAME=${GITHUB_HEAD_REF}
-          else
-            BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          fi
+          # 1. Define o nome da branch atual
+          BRANCH_NAME="${{ github.head_ref }}"
 
-      - name: Validate Branch Name
-        run: ./.github/scripts/validate-branch-name.sh ${{ steps.get_branch.outputs.branch }}
+          # 2. Define a expressão regular para os prefixos permitidos
+          #    A regex: ^(enhancement|fix|hotfix|feature|release)\/.*
+          #    - ^: Começa com
+          #    - (...): Um dos grupos
+          #    - \/: Seguido por uma barra (escapada)
+          #    - .*: Seguido por qualquer caractere
+          ALLOWED_PREFIXES_REGEX="^(enhancement|fix|hotfix|feature|release)\/.*"
+
+          echo "Branch sendo verificada: $BRANCH_NAME"
+          echo "Padrão de prefixo exigido: enhancement/, fix/, hotfix/, feature/, release/"
+
+          # 3. Usa o comando 'grep -E' para verificar se a branch corresponde ao padrão
+          #    O código de saída 0 (sucesso) significa que corresponde.
+          if [[ "$BRANCH_NAME" =~ $ALLOWED_PREFIXES_REGEX ]]; then
+            echo "✅ Sucesso! O nome da branch '$BRANCH_NAME' está correto e corresponde a um prefixo permitido."
+          else
+            echo "❌ FALHA! O nome da branch '$BRANCH_NAME' não segue um dos prefixos permitidos."
+            echo "Os prefixos válidos são: enhancement, fix, hotfix, feature, release."
+            echo "O formato exigido é: prefixo/descricao-do-feito"
+            exit 1 # O código de saída 1 faz o job falhar
+          fi
